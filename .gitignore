@@ -1,0 +1,46 @@
+# Python 环境、缓存和构建产物（保留 pyproject.toml / uv.lock / .python-version）
+.venv/
+venv/
+.uv-cache/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+build/
+dist/
+*.egg-info/
+
+# 本机 IDE、系统文件和 Excel 临时锁文件
+.idea/
+.vscode/
+*.iml
+.DS_Store
+._*
+Thumbs.db
+~$*
+*.tmp
+*.bak
+
+# 本地配置与凭据
+.env
+.env.*
+!.env.example
+.aws/
+.codex/
+
+# 私人报销记录、日志、验收证据和本地模型缓存
+/out/
+/logs/
+/artifacts/
+/models/
+
+# other 仅提交程序必需的两份空白模板，真实票据/凭证/照片留在本地
+/other/**
+!/other/工单号_发票号/
+!/other/工单号_发票号/工单号_发票号_表1.xlsx
+!/other/工单号_发票号/工单号_发票号_表2.xlsx

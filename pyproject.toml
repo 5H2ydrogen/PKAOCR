@@ -1,0 +1,31 @@
+[project]
+name = "pyocrpka"
+version = "0.1.0"
+description = "RoboMaster 战队本地报销材料整理工具"
+readme = "README.md"
+authors = [
+    { name = "H2ydrogen Yeung", email = "yzvc43@gmail.com" }
+]
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "PySide6>=6.8,<7",
+    "openpyxl>=3.1.5,<4",
+    "PyMuPDF>=1.25,<2",
+    "Pillow>=11,<13",
+    "rapidocr-onnxruntime==1.4.4",
+    "onnxruntime>=1.20,<2",
+]
+
+[dependency-groups]
+dev = ["pytest>=8,<10"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["ocr: 真实本地模型推理测试"]
+
+[project.scripts]
+pyocrpka = "pyocrpka:main"
+
+[build-system]
+requires = ["uv_build>=0.13.7,<0.14.0"]
+build-backend = "uv_build"
