@@ -24,6 +24,8 @@ def digest(path: Path) -> str:
 
 def publish_exclusive(source: Path, target: Path):
     """macOS 的 RENAME_EXCL 使存在检查到发布之间也不能覆盖同名目录。"""
+    if sys.platform != "darwin" and not sys.platform.startswith("linux"):
+        raise AppError("当前系统不支持安全发布；本版本优先支持 macOS")
     libc = ctypes.CDLL(None, use_errno=True)
     if sys.platform == "darwin":
         fn = libc.renamex_np
@@ -74,21 +76,22 @@ def generate(s: Submission, inv: Invoice, *, output_dir: Path = OUTPUT_DIR,
             for label, sources in [("实物", s.photos), ("付款凭证", s.payments)]:
                 directory = materials / f"{prefix}_{label}"
                 directory.mkdir()
-                copies.extend((source, directory / f"{prefix}_{label}{i}.jpg") for i, source in enumerate(sources, 1))
+                copies.extend((source, directory / f"{prefix}_{label}{i}{source.suffix}") for i, source in enumerate(sources, 1))
             for source, dest in copies:
                 before = digest(source)
                 if source == s.invoice_pdf and inv.source_digest and before != inv.source_digest:
                     raise AppError("发票在识别后发生变化，请重新选择并识别")
-                converted = source == s.invoice_pdf and source.suffix.lower() != ".pdf"
-                if converted:
+                invoice_image = source == s.invoice_pdf and source.suffix.lower() != ".pdf"
+                if invoice_image:
                     # 保持既有输出文件树：将图片真正转为PDF，不伪装扩展名。
                     with open_invoice(source) as document:
                         document.save(dest)
                 else:
                     shutil.copyfile(source, dest)
-                if (not converted and digest(dest) != before) or digest(source) != before:
+                if (not invoice_image and digest(dest) != before) or digest(source) != before:
                     raise AppError("复制完整性检查失败或原文件被修改，请重新选择材料")
-                validate_file(dest, "pdf" if dest.suffix == ".pdf" else "png" if dest.suffix == ".png" else "jpeg")
+                suffix = dest.suffix.lower()
+                validate_file(dest, "pdf" if suffix == ".pdf" else "png" if suffix == ".png" else "jpeg")
             books = fill_templates(template_dir, stage, prefix, s, inv)
             verify_workbooks(books, s, inv)
             if sum(1 for p in stage.rglob("*") if p.is_file()) != 3 + bool(s.verification_png) + len(s.payments) + len(s.photos):

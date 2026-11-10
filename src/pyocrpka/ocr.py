@@ -77,6 +77,9 @@ class LocalOCR:
         import cv2
         with self._lock:
             self._load()
-            image = cv2.copyMakeBorder(image, 4, 4, 4, 4, cv2.BORDER_CONSTANT, value=(255, 255, 255))
-            result, _ = self._engine(image, use_det=False, use_cls=False)
-            return result[0][0] if result and result[0][1] >= .8 else ""
+            try:
+                image = cv2.copyMakeBorder(image, 4, 4, 4, 4, cv2.BORDER_CONSTANT, value=(255, 255, 255))
+                result, _ = self._engine(image, use_det=False, use_cls=False)
+                return result[0][0] if result and result[0][1] >= .8 else ""
+            except Exception:
+                raise AppError("局部文字识别失败，请手动核对对应字段") from None

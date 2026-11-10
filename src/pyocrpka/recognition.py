@@ -1,12 +1,14 @@
 """PDF 文本优先、逐页 OCR 回退。此模块不接触任何 GUI 控件。"""
 from pathlib import Path
 from contextlib import contextmanager
+from dataclasses import replace
+import statistics
 
 import pymupdf
 
-from .models import AppError, Invoice
+from .models import AppError, Invoice, number
 from .ocr import LocalOCR
-from .parser import Token, extract_candidates, parse_invoice, visual_rows, headers_in
+from .parser import Token, compact, extract_candidates, parse_invoice, visual_rows, headers_in
 from .validation import validate_file
 
 
@@ -23,6 +25,82 @@ def open_invoice(path: Path):
 
 def page_tokens(page) -> list[Token]:
     return [Token(*word[:5]) for word in page.get_text("words") if "\ufffd" not in word[4]]
+
+
+def _restore_specification_spaces(image, token: Token, engine) -> Token:
+    """仅依据清晰的字间空白补回空格，分段重识别后的非空白内容必须一致。"""
+    import cv2
+    import numpy as np
+    crop = image[max(0, int(token.y0)):int(token.y1) + 1, max(0, int(token.x0)):int(token.x1) + 1]
+    if crop.size == 0:
+        return token
+    active = (cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY) < 170).sum(axis=0) >= 2
+    edges = np.diff(np.r_[False, active, False].astype(np.int8))
+    starts, ends = np.flatnonzero(edges == 1), np.flatnonzero(edges == -1)
+    if len(starts) < 2:
+        return token
+    gaps = starts[1:] - ends[:-1]
+    minimum_gap = max(crop.shape[0] * .2, float(np.median(gaps)) * 2.5)
+    cuts = [int((ends[i] + starts[i + 1]) / 2) for i, gap in enumerate(gaps)
+            if gap > minimum_gap
+            # 小数点等窄字形旁的大间隔不当作词间空格。
+            and ends[i] - starts[i] >= crop.shape[0] * .18
+            and ends[i + 1] - starts[i + 1] >= crop.shape[0] * .18]
+    if not cuts or len(cuts) > 8:
+        return token
+    bounds = [0, *cuts, crop.shape[1]]
+    try:
+        parts = [engine.recognize_region(crop[:, left:right]).strip() for left, right in zip(bounds, bounds[1:])]
+    except AppError:
+        return token
+    if all(parts) and compact("".join(parts)) == compact(token.text):
+        return replace(token, text=" ".join(parts))
+    return token
+
+
+def _recover_item_cells(image, tokens: list[Token], headers, engine) -> list[Token]:
+    """对真实商品行缺失的数量单元格补做OCR，并保留规格中的可见词间空白。"""
+    import numpy as np
+    result = list(tokens)
+    quantity = headers["quantity"]
+    header_bottom = max(t.y1 for t in headers.values())
+    for row in visual_rows(tokens):
+        if statistics.median(t.cy for t in row) <= header_bottom:
+            continue
+        text = compact("".join(t.text for t in row))
+        if any(marker in text for marker in ("合计", "价税", "开票人", "销售方", "购买方", "备注")):
+            break
+        cells = {key: [] for key in headers}
+        for token in row:
+            key = min(headers, key=lambda key: abs(token.cx - headers[key].cx))
+            cells[key].append(token)
+        for token in cells.get("specification", []):
+            restored = _restore_specification_spaces(image, token, engine)
+            if restored != token:
+                result[result.index(token)] = restored
+        if (not cells.get("name") or cells.get("quantity")
+                or not any(cells.get(key) for key in ("unit_price", "net_amount", "tax"))):
+            continue
+        preceding = [t for t in headers.values() if t.cx < quantity.cx]
+        if not preceding:
+            continue
+        previous = max(preceding, key=lambda t: t.cx)
+        left = max(0, int((previous.cx + quantity.cx) / 2))
+        right = min(image.shape[1], int(quantity.x1 + (quantity.y1 - quantity.y0) * .15) + 1)
+        center = statistics.median(t.cy for t in row)
+        half_height = statistics.median(t.y1 - t.y0 for t in row) * .6
+        top, bottom = max(0, int(center - half_height)), min(image.shape[0], int(center + half_height) + 1)
+        crop = image[top:bottom, left:right]
+        # 空白单元格不送识别器，防止把纯背景误识为一个数字。
+        if crop.size == 0 or np.count_nonzero(np.min(crop, axis=2) < 180) < 8:
+            continue
+        try:
+            value = engine.recognize_region(crop).strip()
+            if number(value, "数量") is not None:
+                result.append(Token(left, top, right, bottom, value))
+        except AppError:
+            pass  # 仍不能确定时保持空白，由已有缺失字段警告提示用户。
+    return result
 
 
 def scan_tokens(page, engine: LocalOCR) -> list[Token]:
@@ -48,16 +126,20 @@ def scan_tokens(page, engine: LocalOCR) -> list[Token]:
     boundary = quantity.x1 + (quantity.y1 - quantity.y0) * .15
     refined = []
     for token in tokens:
+        # 检测框可在两列之间含空白；这里只做筛选，数值仍从各自图像区域重识别。
         if (token.y0 >= quantity.y1 - 2 and token.x0 < boundary < token.x1
-                and token.x1 > price.x0 and all(c in "0123456789.+-" for c in token.text)):
+                and token.x1 > price.x0 and all(c in "0123456789.+-" for c in compact(token.text))):
             for x0, x1 in [(token.x0, boundary), (boundary, token.x1)]:
                 crop = image[max(0, int(token.y0) - 1):int(token.y1) + 2, max(0, int(x0)):int(x1) + 1]
-                value = engine.recognize_region(crop)
+                try:
+                    value = engine.recognize_region(crop)
+                except AppError:
+                    value = ""
                 if value:
                     refined.append(Token(x0, token.y0, x1, token.y1, value))
         else:
             refined.append(token)
-    return refined
+    return _recover_item_cells(image, refined, headers, engine)
 
 
 def _sufficient(inv: Invoice) -> bool:
@@ -125,7 +207,7 @@ def recognize_invoice(path: Path, engine: LocalOCR | None = None, *, force_ocr: 
     unique = set().union(*(n for n in page_numbers if len(n) == 1))
     if len(unique) > 1:
         raise AppError("PDF 中检测到多张不同发票，请拆分后分别生成")
-    if len(results) > 1 and any(not n for n in page_numbers):
+    if len(results) > 1 and any(len(n) != 1 for n in page_numbers):
         raise AppError("多页 PDF 中有页面无法确认发票归属，请拆分或补充清晰文件")
     first = results[0]
     for other in results[1:]:

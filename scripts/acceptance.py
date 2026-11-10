@@ -14,11 +14,14 @@ from pyocrpka.recognition import recognize_invoice
 
 
 def main():
-    temp = Path(tempfile.mkdtemp(prefix="pyocrpka-acceptance-"))
-    pdf = next(TEMPLATE_DIR.rglob("*.pdf"))
-    verification = next(TEMPLATE_DIR.rglob("*发票查验.png"))
+    pdfs = list(TEMPLATE_DIR.rglob("*.pdf"))
+    verification = next(TEMPLATE_DIR.rglob("*发票查验.png"), None)
     photos = sorted(TEMPLATE_DIR.rglob("*实物*.jpg"))
     payments = sorted(TEMPLATE_DIR.rglob("*付款凭证*.jpg"))
+    if not pdfs or not payments:
+        raise SystemExit("缺少本地验收样例：请在 other/工单号_发票号 下提供发票PDF及付款凭证，私人样例不随仓库发布。")
+    pdf = pdfs[0]
+    temp = Path(tempfile.mkdtemp(prefix="pyocrpka-acceptance-"))
     original = {str(p): digest(p) for p in TEMPLATE_DIR.rglob("*") if p.is_file()}
     text = recognize_invoice(pdf)
     scanned_pdf = temp / "扫描版.pdf"

@@ -97,10 +97,23 @@ def parse_items(tokens: list[Token], notices: list[str]) -> list[Item]:
         if any(marker in text for marker in ("合计", "价税", "开票人", "销售方", "购买方", "备注")):
             break
         cells = {key: [] for key in columns}
+        specification_tokens = []
         for token in row:
             key = min(sorted_columns, key=lambda key: abs(token.cx - columns[key].cx))
             cells[key].append(token.text)
+            if key == "specification":
+                specification_tokens.append(token)
         cells = {k: "".join(v).strip() for k, v in cells.items()}
+        if specification_tokens:
+            # 同行型号被检测为多个框时，保留图上明显的间隔；换行续写仍在下方合并。
+            parts = []
+            previous = None
+            for token in specification_tokens:
+                if previous is not None and token.x0 - previous.x1 > min(token.y1 - token.y0, previous.y1 - previous.y0) * .3:
+                    parts.append(" ")
+                parts.append(token.text)
+                previous = token
+            cells["specification"] = "".join(parts).strip()
         name = cells.get("name", "")
         if not name:
             if items and cells.get("specification") and not any(cells.get(k) for k in ("quantity", "net_amount", "tax")):
@@ -112,7 +125,12 @@ def parse_items(tokens: list[Token], notices: list[str]) -> list[Item]:
             continue
         values = {}
         for key in ("quantity", "unit_price", "net_amount", "tax"):
-            value = compact(cells.get(key, ""))
+            # 同一框内的两个数字可能来自相邻列，不能删掉内部空格后拼成一个数。
+            # 跨列文本由扫描层根据表头裁切重识别；未能分开时留空并提示核对。
+            value = cells.get(key, "").strip()
+            # “15. 64”仍是单个小数；只清理小数点/分组逗号两侧空白，
+            # 保留“100 0.106...”两个数字之间的空白，避免误拼接。
+            value = re.sub(r"\s*([.,])\s*", r"\1", value).replace("￥", "").replace("¥", "").strip()
             # “免税/不征税”是发票明确给出的税额语义；没有该标记时不填零。
             if key == "tax" and value in ("***", "*") and cells.get("tax_rate") in ("免税", "不征税"):
                 values[key] = Decimal(0)

@@ -4,7 +4,7 @@ from logging.handlers import RotatingFileHandler
 import sys
 
 from .models import AppError
-from .paths import PROJECT_ROOT
+from .paths import APP_ICON, PROJECT_ROOT
 
 
 def setup_logging():
@@ -31,9 +31,11 @@ def main():
         print(f"已准备并加载 {len(paths)} 个本地 CPU OCR 模型，可离线使用。")
         return
     from PySide6.QtWidgets import QApplication
+    from PySide6.QtGui import QIcon
     from .gui import MainWindow
     app = QApplication(sys.argv[:1])
     app.setApplicationName("RoboMaster 报销材料整理")
+    app.setWindowIcon(QIcon(str(APP_ICON)))
     app.setStyle("Fusion")
     try:
         setup_logging()

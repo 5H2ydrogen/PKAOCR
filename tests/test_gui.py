@@ -1,7 +1,7 @@
 from pathlib import Path
 import time
 
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QModelIndex, QTimer
 from PySide6.QtTest import QTest
 import pytest
 
@@ -28,6 +28,7 @@ def fill(window, materials, invoice):
 
 
 def test_empty_and_live_error_clear(window):
+    assert not window.windowIcon().isNull()
     assert window.submission().payment == "" and window.submission().category == ""
     window.start_generation()
     assert all(label.text() for key, label in window.error_labels.items() if key not in ("verification_png", "photos"))
@@ -56,7 +57,7 @@ def test_order_remove_and_replace(window, materials):
     control = window.files["photos"]
     control.set_paths(materials.photos)
     first, second = control.paths
-    control.list.setCurrentRow(1);control.move(-1)
+    assert control.list.model().moveRow(QModelIndex(), 1, QModelIndex(), 0)
     assert control.paths == [second, first]
     control.list.setCurrentRow(0);control.remove()
     assert control.paths == [first] and "1" in control.count.text()
@@ -146,7 +147,7 @@ def test_latest_manual_edits_reach_excel(window, qapp, materials, invoice, templ
     window.invoice_fields["total"].setText("31.90")
     window.invoice_fields["net_total"].setText("29.00")
     window.invoice_fields["tax_total"].setText("2.90")
-    window.table.item(0, 2).setText("4")
+    window.table.item(0, 3).setText("4")
     window.table.item(0, 5).setText("20.00")
     window.table.item(0, 7).setText("2.00")
     window.confirm.setChecked(True)

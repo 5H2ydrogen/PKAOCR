@@ -5,3 +5,4 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE_DIR = PROJECT_ROOT / "other" / "工单号_发票号"
 OUTPUT_DIR = PROJECT_ROOT / "out"
 MODEL_DIR = PROJECT_ROOT / "models"
+APP_ICON = Path(__file__).resolve().parent / "assets" / "app-icon.png"

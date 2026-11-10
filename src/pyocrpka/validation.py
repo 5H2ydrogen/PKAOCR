@@ -13,10 +13,13 @@ def safe_component(value: str) -> bool:
 
 
 def validate_file(path: Path, kind: str) -> None:
-    if kind == "invoice":
-        actual_kind = {".pdf": "pdf", ".png": "png", ".jpg": "jpeg", ".jpeg": "jpeg"}.get(path.suffix.lower())
+    if kind in ("invoice", "image"):
+        formats = {".png": "png", ".jpg": "jpeg", ".jpeg": "jpeg"}
+        if kind == "invoice":
+            formats[".pdf"] = "pdf"
+        actual_kind = formats.get(path.suffix.lower())
         if actual_kind is None:
-            raise AppError("发票必须为 PDF、PNG 或 JPG / JPEG")
+            raise AppError("发票必须为 PDF、PNG 或 JPG / JPEG" if kind == "invoice" else "图片必须为 PNG 或 JPG / JPEG")
         validate_file(path, actual_kind)
         return
     suffixes = {"pdf": (".pdf",), "png": (".png",), "jpeg": (".jpg", ".jpeg")}
@@ -69,8 +72,8 @@ def submission_errors(s: Submission, check_files: bool = True) -> dict[str, str]
         errors["category"] = "请选择类别"
     fields = [("invoice_pdf", s.invoice_pdf, "invoice", "请上传发票（PDF / PNG / JPG）"),
               ("verification_png", s.verification_png, "png", "请上传发票查验图片"),
-              ("payments", s.payments, "jpeg", "请上传至少一张付款凭证"),
-              ("photos", s.photos, "jpeg", "请上传至少一张实物照片")]
+              ("payments", s.payments, "image", "请上传至少一张付款凭证"),
+              ("photos", s.photos, "image", "请上传至少一张实物照片")]
     for key, value, kind, missing in fields:
         if not value:
             if key not in ("verification_png", "photos"):

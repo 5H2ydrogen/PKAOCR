@@ -20,7 +20,7 @@ def test_optional_materials_generate(materials, invoice, templates, tmp_path, ve
     prefix = target.name
     folder = target / f"{prefix}_报销材料"
     assert (folder / f"{prefix}_发票查验.png").exists() == verification
-    assert len(list((folder / f"{prefix}_实物").glob("*.jpg"))) == (len(materials.photos) if photos else 0)
+    assert len(list((folder / f"{prefix}_实物").iterdir())) == (len(materials.photos) if photos else 0)
     assert len(list(target.rglob("*.xlsx"))) == 2
     assert digest(folder / f"{prefix}_发票.pdf") == digest(materials.invoice_pdf)
 

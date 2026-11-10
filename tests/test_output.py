@@ -68,7 +68,7 @@ def test_exact_tree_and_copy_order(materials, invoice, tmp_path, templates, coun
     expected = {f"{p}_表1.xlsx", f"{p}_表2.xlsx", f"{p}_报销材料/{p}_发票.pdf", f"{p}_报销材料/{p}_发票查验.png"}
     for kind, files in [("实物", materials.photos), ("付款凭证", materials.payments)]:
         for i, source in enumerate(files, 1):
-            relative = f"{p}_报销材料/{p}_{kind}/{p}_{kind}{i}.jpg"
+            relative = f"{p}_报销材料/{p}_{kind}/{p}_{kind}{i}{source.suffix}"
             expected.add(relative)
             assert digest(target / relative) == digest(source)
             with Image.open(target / relative) as image:
@@ -190,7 +190,7 @@ def test_file_changes_to_wrong_type_during_copy(materials, invoice, tmp_path, te
     original_copy = shutil.copyfile
     def corrupt_copy(source, dest):
         original_copy(source, dest)
-        if dest.suffix == ".jpg":
+        if dest.suffix.lower() in (".jpg", ".jpeg"):
             dest.write_bytes(materials.verification_png.read_bytes())
     monkeypatch.setattr(shutil, "copyfile", corrupt_copy)
     with pytest.raises(AppError):

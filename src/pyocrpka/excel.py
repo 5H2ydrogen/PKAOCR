@@ -6,7 +6,7 @@ from pathlib import Path
 
 from openpyxl import load_workbook
 
-from .models import AppError, Invoice, Item, Submission
+from .models import AppError, CATEGORIES, Invoice, Item, PAYMENTS, Submission
 
 HEADERS = (
     ("工单号", "姓名", "发票金额", "支付方式", "发票号码", "效验码后六位", "发票代码", "开票日期", "备注"),
@@ -59,6 +59,11 @@ def fill_templates(directory: Path, destination: Path, prefix: str, s: Submissio
     ]
     for index, data in enumerate(rows, 1):
         book, sheet = open_template(directory, index)
+        choices = {4: PAYMENTS} if index == 1 else {3: CATEGORIES, 13: PAYMENTS}
+        for col, allowed in choices.items():
+            for rule in sheet.data_validations.dataValidation:
+                if rule.type == "list" and sheet.cell(2, col).coordinate in rule.sqref:
+                    rule.formula1 = '"' + ",".join(allowed) + '"'
         styles = [copy(c._style) for c in sheet[2]]
         row_height = sheet.row_dimensions[2].height
         # 替换示例数据，同时清空表头外 J2/R2 的示例说明，保留样式和空白格式区域。

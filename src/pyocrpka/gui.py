@@ -3,8 +3,8 @@ import logging
 from pathlib import Path
 import traceback
 
-from PySide6.QtCore import Qt, QThread, Signal, QUrl
-from PySide6.QtGui import QDesktopServices, QPixmap
+from PySide6.QtCore import QEvent, Qt, QThread, Signal, QUrl
+from PySide6.QtGui import QDesktopServices, QIcon, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView, QButtonGroup, QCheckBox, QComboBox, QDialog, QFileDialog,
     QFormLayout, QFrame, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 from .models import AppError, CATEGORIES, Invoice, Item, PAYMENTS, Submission, ValidationError, number, parse_date
 from .ocr import LocalOCR
 from .output import generate
+from .paths import APP_ICON
 from .recognition import recognize_invoice
 from .validation import submission_errors, validate_file
 
@@ -49,23 +50,20 @@ class FileInput(QGroupBox):
         self.list = QListWidget()
         self.list.setFixedHeight(64)
         self.list.itemDoubleClicked.connect(self.preview)
+        if multiple:
+            self.list.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+            self.list.setDefaultDropAction(Qt.DropAction.MoveAction)
+            self.list.model().rowsMoved.connect(self.sync_order)
+            self.list.setToolTip("拖动可调整顺序，双击可预览图片")
         layout.addWidget(self.list)
         buttons = QHBoxLayout()
-        choose = QPushButton("重新选择")
-        choose.clicked.connect(lambda: self.choose(False))
-        buttons.addWidget(choose)
-        if multiple:
-            add = QPushButton("添加")
-            add.clicked.connect(lambda: self.choose(True))
-            buttons.addWidget(add)
+        self.add_button = QPushButton("添加")
+        self.add_button.clicked.connect(self.choose)
+        self.add_button.setToolTip("添加材料；单文件更换前请先删除")
+        buttons.addWidget(self.add_button)
         remove = QPushButton("删除")
         remove.clicked.connect(self.remove)
         buttons.addWidget(remove)
-        if multiple:
-            for text, delta in [("上移", -1), ("下移", 1)]:
-                button = QPushButton(text)
-                button.clicked.connect(lambda checked=False, d=delta: self.move(d))
-                buttons.addWidget(button)
         self.count = QLabel("已选 0 个")
         buttons.addWidget(self.count)
         layout.addLayout(buttons)
@@ -83,8 +81,11 @@ class FileInput(QGroupBox):
         self.refresh()
         self.changed.emit()
 
-    def choose(self, append: bool):
-        filters = {"invoice": "发票 (*.pdf *.png *.jpg *.jpeg)", "pdf": "PDF (*.pdf)", "png": "PNG (*.png)", "jpeg": "JPEG (*.jpg *.jpeg)"}
+    def choose(self):
+        if not self.multiple and self.paths:
+            return
+        filters = {"invoice": "发票 (*.pdf *.png *.jpg *.jpeg)", "image": "图片 (*.png *.jpg *.jpeg)",
+                   "pdf": "PDF (*.pdf)", "png": "PNG (*.png)", "jpeg": "JPEG (*.jpg *.jpeg)"}
         if self.multiple:
             names, _ = QFileDialog.getOpenFileNames(self, "选择材料（双击已选图片可预览）", "", filters[self.kind])
         else:
@@ -93,7 +94,7 @@ class FileInput(QGroupBox):
         if not names:
             return
         try:
-            paths = self.paths + [Path(n) for n in names] if append else [Path(n) for n in names]
+            paths = self.paths + [Path(n) for n in names] if self.multiple else [Path(n) for n in names]
             self.set_paths(list(dict.fromkeys(paths)))
         except AppError as e:
             self.error_label.setText(str(e))
@@ -104,6 +105,10 @@ class FileInput(QGroupBox):
         for path in self.paths:
             self.list.addItem(path.name)
             self.list.item(self.list.count() - 1).setToolTip(str(path))
+            self.list.item(self.list.count() - 1).setData(Qt.ItemDataRole.UserRole, str(path))
+        if self.paths:
+            self.list.setCurrentRow(len(self.paths) - 1)
+        self.add_button.setEnabled(self.multiple or not self.paths)
         self.count.setText(f"已选 {len(self.paths)} 个")
         self.error_label.setText("")
 
@@ -114,14 +119,9 @@ class FileInput(QGroupBox):
             self.refresh()
             self.changed.emit()
 
-    def move(self, delta):
-        row = self.list.currentRow()
-        target = row + delta
-        if 0 <= row < len(self.paths) and 0 <= target < len(self.paths):
-            self.paths[row], self.paths[target] = self.paths[target], self.paths[row]
-            self.refresh()
-            self.list.setCurrentRow(target)
-            self.changed.emit()
+    def sync_order(self, *_):
+        self.paths = [Path(self.list.item(row).data(Qt.ItemDataRole.UserRole)) for row in range(self.list.count())]
+        self.changed.emit()
 
     def preview(self):
         row = self.list.currentRow()
@@ -144,9 +144,9 @@ class FileInput(QGroupBox):
             self.error.emit(str(e))
 
 
-ITEM_COLUMNS = [("name", "商品名称"), ("specification", "规格型号"), ("quantity", "数量"), ("unit", "单位"),
-                ("unit_price", "未税单价"), ("net_amount", "未税整行金额"), ("tax_rate", "税率"),
-                ("tax", "该行税额"), ("gross_amount", "明确含税金额")]
+ITEM_COLUMNS = [("name", "项目名称"), ("specification", "规格型号"), ("unit", "单位"), ("quantity", "数量"),
+                ("unit_price", "单价"), ("net_amount", "金额"), ("tax_rate", "税率/征收率"),
+                ("tax", "税额")]
 
 STYLE = """
 QMainWindow, QScrollArea, QWidget#canvas { background: #f2f5f9; }
@@ -172,6 +172,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("RoboMaster · 本地报销材料整理")
+        self.setWindowIcon(QIcon(str(APP_ICON)))
         self.resize(1280, 940)
         self.setMinimumSize(1000, 720)
         self.setStyleSheet(STYLE)
@@ -185,12 +186,22 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(root)
         layout = QVBoxLayout(root)
         layout.setContentsMargins(24, 18, 24, 18)
+        heading = QHBoxLayout()
+        self.logo = QLabel()
+        self._logo_source = QPixmap(str(APP_ICON))
+        self.logo.setFixedSize(68, 68)
+        self.logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.update_logo()
+        heading.addWidget(self.logo)
+        heading_text = QVBoxLayout()
         title = QLabel("RoboMaster  /  报销材料整理")
         title.setObjectName("title")
-        layout.addWidget(title)
+        heading_text.addWidget(title)
         subtitle = QLabel("填写信息 → 上传材料 → 本地识别 → 核对并生成　｜　所有材料仅保存在本机")
         subtitle.setObjectName("muted")
-        layout.addWidget(subtitle)
+        heading_text.addWidget(subtitle)
+        heading.addLayout(heading_text, 1)
+        layout.addLayout(heading)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
@@ -237,8 +248,8 @@ class MainWindow(QMainWindow):
         self.files = {}
         for key, text, kind, multi in [("invoice_pdf", "02  发票 · PDF / PNG / JPG", "invoice", False),
                                        ("verification_png", "发票查验 · PNG · 选填", "png", False),
-                                       ("payments", "付款凭证 · JPG / JPEG · 按列表顺序编号", "jpeg", True),
-                                       ("photos", "实物 · JPG / JPEG · 选填 · 按列表顺序编号", "jpeg", True)]:
+                                       ("payments", "付款凭证 · PNG / JPG / JPEG · 拖动排序", "image", True),
+                                       ("photos", "实物 · PNG / JPG / JPEG · 选填 · 拖动排序", "image", True)]:
             control = FileInput(text, kind, multi)
             self.files[key] = control
             self.error_labels[key] = control.error_label
@@ -249,7 +260,7 @@ class MainWindow(QMainWindow):
         left.addStretch()
         editor = QGroupBox("03  发票识别结果 · 所有字段均可修改")
         editor_layout = QVBoxLayout(editor)
-        hint = QLabel("空白表示未识别。请核对原票；含税金额留空时仅使用明确的未税金额与税额计算。")
+        hint = QLabel("空白表示未识别，请对照原票核对。单价、金额按发票原值填写，输出含税总价自动计算。")
         hint.setWordWrap(True)
         hint.setObjectName("muted")
         editor_layout.addWidget(hint)
@@ -330,6 +341,25 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.status)
         self.result_changed()
 
+    def update_logo(self):
+        """按物理像素渲染，避免64像素图片在Retina屏幕上被放大。"""
+        ratio = self.devicePixelRatioF()
+        pixels = max(1, round(64 * ratio))
+        pixmap = self._logo_source.scaled(pixels, pixels, Qt.AspectRatioMode.KeepAspectRatio,
+                                          Qt.TransformationMode.SmoothTransformation)
+        pixmap.setDevicePixelRatio(ratio)
+        self.logo.setPixmap(pixmap)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.update_logo()
+
+    def event(self, event):
+        result = super().event(event)
+        if event.type() == QEvent.Type.DevicePixelRatioChange and hasattr(self, "logo"):
+            self.update_logo()
+        return result
+
     def make_error(self, key):
         label = QLabel()
         label.setObjectName("error")
@@ -357,7 +387,8 @@ class MainWindow(QMainWindow):
 
     def invoice_file_changed(self):
         self.load_invoice(Invoice())
-        self.status.setText("发票已更换，请重新识别或人工填写；旧识别结果已清空")
+        self.status.setText("发票已添加，请识别或人工填写；旧识别结果已清空" if self.files["invoice_pdf"].paths
+                            else "发票已删除，请重新添加；旧识别结果已清空")
 
     def add_item(self, item: Item | None = None):
         item = item or Item()
@@ -394,7 +425,7 @@ class MainWindow(QMainWindow):
             for col, (key, label) in enumerate(ITEM_COLUMNS):
                 cell = self.table.item(row, col)
                 text = cell.text().strip() if cell else ""
-                values[key] = number(text, f"第 {row + 1} 行{label}") if key in ("quantity", "unit_price", "net_amount", "tax", "gross_amount") else text
+                values[key] = number(text, f"第 {row + 1} 行{label}") if key in ("quantity", "unit_price", "net_amount", "tax") else text
             if any(v not in (None, "") for v in values.values()):
                 inv.items.append(Item(**values))
         return inv
@@ -430,6 +461,8 @@ class MainWindow(QMainWindow):
             self.calculated_label.setText("输出含税金额预览　" + "；".join(values) if values else "")
         except AppError as e:
             self.result_error.setText(str(e))
+            self.warnings_label.clear()
+            self.calculated_label.clear()
 
     def set_status_error(self, text):
         self.status.setStyleSheet("color: #c92e3d;")

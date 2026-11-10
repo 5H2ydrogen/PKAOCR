@@ -121,7 +121,7 @@ class Invoice:
         if not self.items:
             warnings.append("未识别商品明细，表2明细字段将留空")
         if self.net_total is not None and self.tax_total is not None and self.total is not None:
-            if abs(self.net_total + self.tax_total - self.total) > CENT:
+            if self.net_total + self.tax_total != self.total:
                 warnings.append("未税合计 + 税额合计 与价税合计不一致")
         for i, item in enumerate(self.items, 1):
             missing = [label for label, value in [("商品名称", item.name or None), ("数量", item.quantity),
@@ -131,10 +131,13 @@ class Invoice:
             if item.gross() is None:
                 warnings.append(f"第 {i} 行含税金额无法确定，K列将留空")
             if item.net_amount is not None and item.quantity is not None and item.unit_price is not None:
-                if abs(item.net_amount - item.quantity * item.unit_price) > CENT:
+                with localcontext() as context:
+                    context.prec = 64
+                    expected_net = (item.quantity * item.unit_price).quantize(CENT, rounding=ROUND_HALF_UP)
+                if item.net_amount != expected_net:
                     warnings.append(f"第 {i} 行数量 × 未税单价 与未税金额不一致")
             if item.gross_amount is not None and item.net() is not None and item.tax is not None:
-                if abs(item.gross_amount - item.net() - item.tax) > CENT:
+                if item.gross_amount != item.net() + item.tax:
                     warnings.append(f"第 {i} 行含税金额 与未税金额 + 税额不一致")
         for label, values, total in [
             ("商品含税金额", [i.gross() for i in self.items], self.total),
@@ -142,7 +145,7 @@ class Invoice:
             ("商品税额", [i.tax for i in self.items], self.tax_total),
         ]:
             if values and total is not None and all(v is not None for v in values):
-                if abs(sum(values, Decimal(0)) - total) > CENT:
+                if sum(values, Decimal(0)) != total:
                     warnings.append(f"{label}之和与发票合计不一致")
         return list(dict.fromkeys(warnings))
 
