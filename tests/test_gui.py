@@ -143,7 +143,7 @@ def test_latest_manual_edits_reach_excel(window, qapp, materials, invoice, templ
     fill(window, materials, invoice)
     window.payment_group.buttons()[1].click()
     window.category_group.buttons()[10].click()
-    window.invoice_fields["number"].setEditText("00001111")
+    window.invoice_fields["number"].setText("00001111")
     window.invoice_fields["total"].setText("31.90")
     window.invoice_fields["net_total"].setText("29.00")
     window.invoice_fields["tax_total"].setText("2.90")
@@ -173,3 +173,21 @@ def test_deleted_upload_shows_error_near_field(window, qapp, materials, invoice,
     wait_job(window, qapp)
     assert "不存在" in window.error_labels["verification_png"].text()
     assert window.output_path is None
+
+
+def test_invoice_number_is_plain_text_and_candidates_require_manual_input(window, invoice):
+    from PySide6.QtWidgets import QLineEdit
+    invoice.number = ""
+    invoice.candidates = ["00001111", "00002222"]
+    window.load_invoice(invoice)
+    field = window.invoice_fields["number"]
+    assert isinstance(field, QLineEdit)
+    assert field.text() == "" and window.read_invoice().number == ""
+    assert all(candidate in window.warnings_label.text() for candidate in invoice.candidates)
+    window.start_generation()
+    assert window.worker is None and "发票号码" in window.result_error.text()
+    window.confirm.setChecked(True)
+    field.setText("00002222")
+    assert window.read_invoice().number == "00002222"
+    assert not window.confirm.isChecked()
+    assert not window.read_invoice().errors()

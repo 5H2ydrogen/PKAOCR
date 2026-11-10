@@ -1,7 +1,7 @@
 [project]
 name = "pyocrpka"
 version = "0.1.0"
-description = "RoboMaster 战队本地报销材料整理工具"
+description = "PKAOCR 本地发票识别与报销材料整理工具"
 readme = "README.md"
 authors = [
     { name = "H2ydrogen Yeung", email = "yzvc43@gmail.com" }

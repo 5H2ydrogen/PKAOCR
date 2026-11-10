@@ -18,7 +18,7 @@ def setup_logging():
 
 
 def main():
-    parser = argparse.ArgumentParser(description="RoboMaster 本地报销工具")
+    parser = argparse.ArgumentParser(description="PKAOCR 本地发票识别与报销材料整理")
     parser.add_argument("--prepare-models", action="store_true", help="从已安装依赖中准备本地 OCR 模型（不联网）")
     args = parser.parse_args()
     if args.prepare_models:
@@ -34,7 +34,8 @@ def main():
     from PySide6.QtGui import QIcon
     from .gui import MainWindow
     app = QApplication(sys.argv[:1])
-    app.setApplicationName("RoboMaster 报销材料整理")
+    app.setApplicationName("PKAOCR")
+    app.setApplicationDisplayName("PKAOCR")
     app.setWindowIcon(QIcon(str(APP_ICON)))
     app.setStyle("Fusion")
     try:

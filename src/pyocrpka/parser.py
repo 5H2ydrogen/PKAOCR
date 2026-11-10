@@ -151,7 +151,7 @@ def parse_invoice(tokens: list[Token]) -> Invoice:
     if len(inv.candidates) == 1:
         inv.number = inv.candidates[0]
     elif len(inv.candidates) > 1:
-        inv.notices.append("识别到多个候选发票号码，请在候选框中选择或手动确认")
+        inv.notices.append("识别到多个候选发票号码，请核对原票并手动填写")
     texts = [compact("".join(t.text for t in row)) for row in visual_rows(tokens)]
     text = "\n".join(texts)
     code = re.search(r"发票代码[:]?(\d{10,12})(?!\d)", text)

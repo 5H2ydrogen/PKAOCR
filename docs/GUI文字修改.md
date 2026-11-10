@@ -24,7 +24,7 @@
 例如修改标题：
 
 ```python
-title = QLabel("战队报销材料整理")
+title = QLabel("PKAOCR")
 ```
 
 例如修改表头，只改右侧中文，不改左侧英文键：

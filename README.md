@@ -1,15 +1,16 @@
-# RoboMaster 战队本地报销材料整理
+# PKAOCR
 
-中文 PySide6 桌面程序。填写工单号、姓名，主动选择付款方式和类别，上传材料，识别并核对发票后，一键填充现有 Excel 模板并整理到项目 `out/`。
+在本地进行发票OCR，实物图以及购买凭证的收集，并整理成规范文件夹
 
-所有发票、凭证和个人信息仅在电脑本地处理。没有服务器、数据库、云 OCR 或在线大模型。安装依赖可以联网；正常运行不联网。OCR 固定使用本地模型，模型缺失时提示准备，不自动下载。ONNX Runtime 遥测在创建推理会话前关闭。
+## 环境搭建
 
-## 安装与启动
+已适配并验收环境：macOS 27，Windows11
 
-当前适配并验收环境：macOS 27.0、Apple Silicon arm64、Python 3.12.16、uv 0.13.7。项目已有 `.python-version`，不要使用 macOS 系统 Python 3.9。依赖版本以 `uv.lock` 为准。
-
-在项目根目录执行：
-
+将项目下载到本地
+```bash
+git clone https://github.com/5H2ydrogen/PKAOCR.git
+```
+### macOS/Linux
 ```bash
 uv sync --locked
 uv run --locked pyocrpka --prepare-models
@@ -23,22 +24,16 @@ UV_CACHE_DIR=.uv-cache uv sync --locked
 UV_CACHE_DIR=.uv-cache uv run --offline --locked pyocrpka --prepare-models
 UV_CACHE_DIR=.uv-cache uv run --offline --locked pyocrpka
 ```
+启动命令 
+```bash
+uv run --offline --locked pyocrpka
+```
+也可以直接在venv中直接运行main.py
+### Windows
 
-模型准备从 `rapidocr-onnxruntime==1.4.4` 安装包复制三个约 15 MB 的 ONNX 模型至 `models/`，生成 SHA-256 清单并实际加载。准备命令本身不联网，不下载 GPU/CUDA 组件。`models/` 是本地缓存，不提交 Git；克隆项目后请按上述命令准备模型。模型变更/损坏时先移走损坏的 `models/`，再执行准备命令。
+先安装[Python](https://www.python.org/)
 
-断网启动也可直接使用 `.venv/bin/python src/main.py`，它完全跳过 uv 的依赖检查。迁移到另一台电脑应重新 `uv sync --locked`，不要复制与操作系统绑定的 `.venv`。
-
-### PyCharm
-
-1. 打开当前项目。
-2. 设置项目解释器为项目内 `.venv/bin/python`（Python 3.12）。
-3. 打开并运行 **`src/main.py`**。无需修改代码，无需固定工作目录。
-
-也可运行 Python 模块 `pyocrpka` 或控制台命令 `uv run --offline --locked pyocrpka`。
-
-### Windows 环境配置与使用（未验证）
-
-以下以 Windows 10/11 的 PowerShell 为例，仅提供配置参考，未在 Windows 实机验证。**当前代码尚未实现 Windows 的输出目录安全发布，生成报销文件前仍需适配 `src/pyocrpka/output.py` 中的 `publish_exclusive`。**
+打开Windows 10/11 的 PowerShell
 
 1. **安装 uv。** 打开 PowerShell，执行：
 
@@ -46,34 +41,23 @@ UV_CACHE_DIR=.uv-cache uv run --offline --locked pyocrpka
    winget install --id=astral-sh.uv -e
    ```
 
-   安装后关闭并重新打开 PowerShell。若没有 `winget`，可按 [uv 官方安装说明](https://docs.astral.sh/uv/getting-started/installation/) 使用其他安装方式。
-
-2. **进入项目，安装 Python 3.12、依赖和 OCR 模型。** 从 GitHub 下载并解压项目，或克隆仓库。将下面路径改成自己的项目位置：
+2. **进入项目
 
    ```powershell
-   cd "D:\Projects\pyocrpka"
    uv python install 3.12
    uv sync --locked --python 3.12
    uv run --offline --locked pyocrpka --prepare-models
    ```
-
-   首次安装 Python 和依赖需要联网；模型准备从已安装依赖复制本地文件。不需要单独安装 Python、CUDA 或 GPU 驱动，也不需要手动激活虚拟环境。
 
 3. **启动程序。** 后续在项目目录执行：
 
    ```powershell
    uv run --offline --locked pyocrpka
    ```
+也可直接使用 Windows 虚拟环境解释器启动
 
-   也可直接使用 Windows 虚拟环境解释器启动：
-
-   ```powershell
-   .\.venv\Scripts\python.exe .\src\main.py
-   ```
-
-4. **在 PyCharm 中运行。** 打开项目，将解释器设置为项目内的 `.venv\Scripts\python.exe`，然后运行 `src\main.py`。
-
-注意：本项目要求 Python 3.12；不要复制 macOS 的 `.venv` 到 Windows。若提示找不到 `uv`，先重新打开 PowerShell；若提示模型未准备，重新执行 `--prepare-models`。模板仍放在 `other\工单号_发票号\`，生成目录仍为项目内的 `out\`。
+---
+# 下面是AI
 
 ## 使用流程
 
@@ -81,7 +65,7 @@ UV_CACHE_DIR=.uv-cache uv run --offline --locked pyocrpka
 2. 选择 1 个发票（PDF / PNG / JPG / JPEG）和至少 1 张付款图片（PNG / JPG / JPEG）。查验 PNG 和实物图片为选填；选择后仍验证真实格式，改后缀不能绕过验证。
 3. 四组文件区均只有“添加、删除”按钮。发票和查验各限一个，更换前先删除；付款凭证和实物可多次添加，拖动列表调整顺序，按最终顺序编号。双击图片预览；双击 PDF 用系统默认应用打开。
 4. 点击“开始识别”。PDF 优先读取文字层，字段不足时渲染页面并使用本地 RapidOCR；图片发票使用本地 OCR。识别和生成均在工作线程执行。
-5. 对照原票核对日期、发票号、价税合计及每一行商品。所有结果都能修改，可添加/删除商品行。多个候选发票号会显示在可编辑下拉框中，必须主动确定最终值。更换发票会清空旧识别结果。
+5. 对照原票核对日期、发票号、价税合计及每一行商品。所有结果都能修改，可添加/删除商品行。发票号码使用普通文本输入框；多个候选号码会显示在警告区，需要核对原票后手动填写最终值。当前一次只处理一张发票，更换发票会清空旧识别结果。
 
    明细列名及顺序与发票一致：项目名称、规格型号、单位、数量、单价、金额、税率/征收率、税额。不提供单独的含税金额输入列，输出含税总价自动计算。
 

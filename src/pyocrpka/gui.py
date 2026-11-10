@@ -6,7 +6,7 @@ import traceback
 from PySide6.QtCore import QEvent, Qt, QThread, Signal, QUrl
 from PySide6.QtGui import QDesktopServices, QIcon, QPixmap
 from PySide6.QtWidgets import (
-    QAbstractItemView, QButtonGroup, QCheckBox, QComboBox, QDialog, QFileDialog,
+    QAbstractItemView, QButtonGroup, QCheckBox, QDialog, QFileDialog,
     QFormLayout, QFrame, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
     QListWidget, QMainWindow, QPushButton, QRadioButton, QScrollArea,
     QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
@@ -153,7 +153,7 @@ QMainWindow, QScrollArea, QWidget#canvas { background: #f2f5f9; }
 QWidget { color: #233149; font-size: 13px; }
 QGroupBox { background: white; border: 1px solid #dce3ed; border-radius: 10px; margin-top: 12px; padding: 14px 10px 8px; font-weight: 600; }
 QGroupBox::title { subcontrol-origin: margin; left: 14px; padding: 0 5px; }
-QLineEdit, QComboBox { background: white; border: 1px solid #cad4e2; border-radius: 6px; padding: 7px; min-height: 18px; }
+QLineEdit { background: white; border: 1px solid #cad4e2; border-radius: 6px; padding: 7px; min-height: 18px; }
 QListWidget, QTableWidget { background: white; border: 1px solid #e0e6ef; border-radius: 5px; }
 QPushButton { background: #e8eef7; border: 0; border-radius: 6px; padding: 8px 12px; }
 QPushButton:hover { background: #d4e2f6; }
@@ -171,7 +171,7 @@ QCheckBox, QRadioButton { spacing: 7px; padding: 3px; }
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("RoboMaster · 本地报销材料整理")
+        self.setWindowTitle("PKAOCR")
         self.setWindowIcon(QIcon(str(APP_ICON)))
         self.resize(1280, 940)
         self.setMinimumSize(1000, 720)
@@ -194,10 +194,10 @@ class MainWindow(QMainWindow):
         self.update_logo()
         heading.addWidget(self.logo)
         heading_text = QVBoxLayout()
-        title = QLabel("RoboMaster  /  报销材料整理")
+        title = QLabel("PKAOCR")
         title.setObjectName("title")
         heading_text.addWidget(title)
-        subtitle = QLabel("填写信息 → 上传材料 → 本地识别 → 核对并生成　｜　所有材料仅保存在本机")
+        subtitle = QLabel("材料仅保存在本机")
         subtitle.setObjectName("muted")
         heading_text.addWidget(subtitle)
         heading.addLayout(heading_text, 1)
@@ -271,14 +271,9 @@ class MainWindow(QMainWindow):
         for key, text in [("number", "发票号码 *"), ("issued_on", "开票日期"), ("total", "价税合计（元）"),
                           ("code", "发票代码"), ("check_last6", "校验码后六位"),
                           ("net_total", "未税合计（元）"), ("tax_total", "税额合计（元）")]:
-            control = QComboBox() if key == "number" else QLineEdit()
-            if key == "number":
-                control.setEditable(True)
-                control.currentTextChanged.connect(self.result_changed)
-                control.lineEdit().setPlaceholderText("未识别 / 可手动填写")
-            else:
-                control.textChanged.connect(self.result_changed)
-                control.setPlaceholderText("未识别 / 可手动填写")
+            control = QLineEdit()
+            control.textChanged.connect(self.result_changed)
+            control.setPlaceholderText("未识别 / 可手动填写")
             self.invoice_fields[key] = control
             metadata.addRow(text, control)
         self.invoice_fields["issued_on"].setPlaceholderText("YYYY-MM-DD；未识别可留空")
@@ -302,7 +297,7 @@ class MainWindow(QMainWindow):
         row_buttons.addWidget(delete_row)
         row_buttons.addStretch()
         editor_layout.addLayout(row_buttons)
-        note = QLabel("规格型号、税率保留在确认界面；模板无对应列。查验图片仅作为材料，不代表真伪查验通过。")
+        note = QLabel("此表格可进行修改，请详细确认")
         note.setWordWrap(True)
         note.setObjectName("muted")
         editor_layout.addWidget(note)
@@ -317,7 +312,7 @@ class MainWindow(QMainWindow):
         self.calculated_label = QLabel()
         self.calculated_label.setWordWrap(True)
         editor_layout.addWidget(self.calculated_label)
-        self.confirm = QCheckBox("我已对照原票核对结果，并确认保留上述缺失或冲突（如有）")
+        self.confirm = QCheckBox("确认结果无误")
         self.confirm.setToolTip("修改输入或识别结果后需重新确认")
         editor_layout.addWidget(self.confirm)
         right.addWidget(editor)
@@ -335,7 +330,7 @@ class MainWindow(QMainWindow):
             buttons.addWidget(button)
         buttons.addStretch()
         layout.addLayout(buttons)
-        self.status = QLabel("就绪 · 请填写信息并上传材料")
+        self.status = QLabel("占位符")
         self.status.setWordWrap(True)
         self.status.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         layout.addWidget(self.status)
@@ -411,7 +406,7 @@ class MainWindow(QMainWindow):
     def read_invoice(self) -> Invoice:
         inv = deepcopy(self.invoice)
         for key, widget in self.invoice_fields.items():
-            text = widget.currentText().strip() if isinstance(widget, QComboBox) else widget.text().strip()
+            text = widget.text().strip()
             if key == "issued_on":
                 value = parse_date(text)
             elif key in ("total", "net_total", "tax_total"):
@@ -436,12 +431,7 @@ class MainWindow(QMainWindow):
         for key, widget in self.invoice_fields.items():
             value = getattr(inv, key)
             text = value.isoformat() if key == "issued_on" and value else str(value) if value is not None else ""
-            if isinstance(widget, QComboBox):
-                widget.clear()
-                widget.addItems(inv.candidates)
-                widget.setEditText(text)
-            else:
-                widget.setText(text)
+            widget.setText(text)
         self.table.setRowCount(0)
         for item in inv.items:
             self.add_item(item)
@@ -456,7 +446,10 @@ class MainWindow(QMainWindow):
         try:
             inv = self.read_invoice()
             self.result_error.setText("\n".join(inv.errors().values()))
-            self.warnings_label.setText("\n".join(f"• {w}" for w in inv.warnings()))
+            warnings = inv.warnings()
+            if len(inv.candidates) > 1:
+                warnings.insert(0, "候选发票号码：" + "、".join(inv.candidates) + "。请核对原票后手动填写。")
+            self.warnings_label.setText("\n".join(f"• {w}" for w in warnings))
             values = [f"第{i}行：{item.gross():.2f}元" if item.gross() is not None else f"第{i}行：未确定" for i, item in enumerate(inv.items, 1)]
             self.calculated_label.setText("输出含税金额预览　" + "；".join(values) if values else "")
         except AppError as e:
