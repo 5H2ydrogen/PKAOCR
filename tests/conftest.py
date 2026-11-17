@@ -40,7 +40,7 @@ def materials(tmp_path):
         path = tmp_path / f"照片{i}.jpeg"
         Image.new("RGB", (32, 32), color).save(path, "JPEG")
         jpgs.append(path)
-    return Submission("TEST-流水号", "测试成员", "微信", "硬件", pdf, png, jpgs[:2], jpgs[1:])
+    return Submission("测试成员", "微信", "硬件", pdf, png, jpgs[:2], jpgs[1:])
 
 
 @pytest.fixture

@@ -10,10 +10,10 @@ from pyocrpka.validation import submission_errors, validate_file
 
 
 def test_all_empty():
-    assert set(submission_errors(Submission())) == {"work_order", "name", "payment", "category", "invoice_pdf", "payments"}
+    assert set(submission_errors(Submission())) == {"name", "payment", "category", "invoice_pdf", "payments"}
 
 
-@pytest.mark.parametrize("field", ["work_order", "name", "payment", "category", "invoice_pdf", "verification_png", "payments", "photos"])
+@pytest.mark.parametrize("field", ["name", "payment", "category", "invoice_pdf", "verification_png", "payments", "photos"])
 def test_each_missing(materials, field):
     empty = [] if field in ("payments", "photos") else None if field in ("invoice_pdf", "verification_png") else ""
     assert set(submission_errors(replace(materials, **{field: empty}))) == (set() if field in ("verification_png", "photos") else {field})
@@ -23,12 +23,7 @@ def test_multiple_missing(materials):
     assert set(submission_errors(replace(materials, payment="", category="", name=""))) == {"payment", "category", "name"}
 
 
-@pytest.mark.parametrize("value", ["../foo", "a/b", "a\\b", "..", ".", "a:b", "a*", "a?", "a\x00", "a|b", "a<", "a>", 'a"', "a.", "x" * 71])
-def test_path_rejected(materials, value):
-    assert "work_order" in submission_errors(replace(materials, work_order=value))
-
-
-@pytest.mark.parametrize("field,value", [("payment", "微信支付"), ("payment", "现金"), ("category", "英雄")])
+@pytest.mark.parametrize("field,value", [("payment", " "), ("payment", "现\x00金"), ("category", "英雄"), ("category", "三步"), ("category", "四步")])
 def test_invalid_choices(materials, field, value):
     assert field in submission_errors(replace(materials, **{field: value}))
 

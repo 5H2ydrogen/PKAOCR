@@ -41,6 +41,6 @@ Thumbs.db
 
 # other 仅提交程序必需的两份空白模板，真实票据/凭证/照片留在本地
 /other/**
-!/other/工单号_发票号/
-!/other/工单号_发票号/工单号_发票号_表1.xlsx
-!/other/工单号_发票号/工单号_发票号_表2.xlsx
+!/other/发票号/
+!/other/发票号/发票号_表1.xlsx
+!/other/发票号/发票号_表2.xlsx

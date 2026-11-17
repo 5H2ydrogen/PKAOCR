@@ -6,7 +6,7 @@ from pathlib import Path
 import re
 
 PAYMENTS = ("微信", "支付宝")
-CATEGORIES = ("重装", "三步", "四步", "哨兵", "无人机", "飞镖", "管理", "宣传", "硬件", "新生培训", "场地")
+CATEGORIES = ("重装", "洞步", "腿步", "哨兵", "无人机", "飞镖", "管理", "宣传", "硬件", "新生培训", "场地", "通用耗材")
 CENT = Decimal("0.01")
 
 
@@ -129,7 +129,7 @@ class Invoice:
             if missing:
                 warnings.append(f"第 {i} 行缺少{'、'.join(missing)}，请核对")
             if item.gross() is None:
-                warnings.append(f"第 {i} 行含税金额无法确定，K列将留空")
+                warnings.append(f"第 {i} 行含税金额无法确定，J列将留空")
             if item.net_amount is not None and item.quantity is not None and item.unit_price is not None:
                 with localcontext() as context:
                     context.prec = 64
@@ -152,7 +152,6 @@ class Invoice:
 
 @dataclass
 class Submission:
-    work_order: str = ""
     name: str = ""
     payment: str = ""
     category: str = ""

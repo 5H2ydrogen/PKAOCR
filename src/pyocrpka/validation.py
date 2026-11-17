@@ -4,12 +4,7 @@ import re
 import pymupdf
 from PIL import Image, UnidentifiedImageError
 
-from .models import AppError, CATEGORIES, PAYMENTS, Submission
-
-
-def safe_component(value: str) -> bool:
-    return bool(value and value.strip() == value and len(value) <= 70 and value not in (".", "..")
-                and not re.search(r'[<>:"/\\|?*\x00-\x1f\x7f]', value) and not value.endswith("."))
+from .models import AppError, CATEGORIES, Submission
 
 
 def validate_file(path: Path, kind: str) -> None:
@@ -58,16 +53,14 @@ def validate_file(path: Path, kind: str) -> None:
 
 def submission_errors(s: Submission, check_files: bool = True) -> dict[str, str]:
     errors = {}
-    if not s.work_order.strip():
-        errors["work_order"] = "请填写工单号"
-    elif not safe_component(s.work_order):
-        errors["work_order"] = "工单号不能包含路径或非法字符，且最多 70 字符"
     if not s.name.strip():
         errors["name"] = "请填写姓名"
     elif len(s.name) > 100 or re.search(r"[\x00-\x1f]", s.name):
         errors["name"] = "姓名过长或包含控制字符"
-    if s.payment not in PAYMENTS:
-        errors["payment"] = "请选择付款方式"
+    if not s.payment.strip():
+        errors["payment"] = "请选择或填写付款方式"
+    elif re.search(r"[\x00-\x1f]", s.payment):
+        errors["payment"] = "付款方式不能包含控制字符"
     if s.category not in CATEGORIES:
         errors["category"] = "请选择类别"
     fields = [("invoice_pdf", s.invoice_pdf, "invoice", "请上传发票（PDF / PNG / JPG）"),

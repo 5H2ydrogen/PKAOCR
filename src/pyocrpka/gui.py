@@ -217,23 +217,30 @@ class MainWindow(QMainWindow):
         self.error_labels = {}
         base = QGroupBox("01  报销信息 · 全部必填")
         form = QFormLayout(base)
-        self.work_order, self.name = QLineEdit(), QLineEdit()
-        self.work_order.setPlaceholderText("例如 20260928-013")
+        self.name = QLineEdit()
         self.name.setPlaceholderText("实际支出人姓名")
-        for key, text, widget in [("work_order", "工单号", self.work_order), ("name", "姓名", self.name)]:
-            wrap = QVBoxLayout()
-            wrap.addWidget(widget)
-            wrap.addWidget(self.make_error(key))
-            form.addRow(text, wrap)
-            widget.textChanged.connect(self.inputs_changed)
+        name_layout = QVBoxLayout()
+        name_layout.addWidget(self.name)
+        name_layout.addWidget(self.make_error("name"))
+        form.addRow("姓名", name_layout)
+        self.name.textChanged.connect(self.inputs_changed)
         self.payment_group = QButtonGroup(self)
         payment_layout = QHBoxLayout()
         for text in PAYMENTS:
             button = QRadioButton(text)
             self.payment_group.addButton(button)
             payment_layout.addWidget(button)
+        self.other_payment = QRadioButton("其他")
+        self.payment_group.addButton(self.other_payment)
+        payment_layout.addWidget(self.other_payment)
+        self.custom_payment = QLineEdit()
+        self.custom_payment.setPlaceholderText("请输入付款方式")
+        self.custom_payment.hide()
+        self.other_payment.toggled.connect(self.custom_payment.setVisible)
+        self.custom_payment.textChanged.connect(self.inputs_changed)
         self.payment_group.buttonToggled.connect(self.inputs_changed)
         form.addRow("付款方式", payment_layout)
+        form.addRow(self.custom_payment)
         form.addRow("", self.make_error("payment"))
         self.category_group = QButtonGroup(self)
         category_layout = QGridLayout()
@@ -365,9 +372,10 @@ class MainWindow(QMainWindow):
     def submission(self) -> Submission:
         one = lambda key: self.files[key].paths[0] if self.files[key].paths else None
         selected = lambda group: group.checkedButton().text() if group.checkedButton() else ""
-        return Submission(self.work_order.text().strip(), self.name.text().strip(), selected(self.payment_group),
-                          selected(self.category_group), one("invoice_pdf"), one("verification_png"),
-                          list(self.files["payments"].paths), list(self.files["photos"].paths))
+        payment = self.custom_payment.text().strip() if self.other_payment.isChecked() else selected(self.payment_group)
+        return Submission(name=self.name.text().strip(), payment=payment, category=selected(self.category_group),
+                          invoice_pdf=one("invoice_pdf"), verification_png=one("verification_png"),
+                          payments=list(self.files["payments"].paths), photos=list(self.files["photos"].paths))
 
     def show_errors(self, errors):
         for key, label in self.error_labels.items():

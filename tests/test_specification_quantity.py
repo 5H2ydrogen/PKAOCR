@@ -100,7 +100,7 @@ def test_private_three_item_specification_regression(materials, templates, tmp_p
     target = generate(replace(materials, invoice_pdf=photo), inv, output_dir=tmp_path / "out", template_dir=templates)
     first = load_workbook(target / f"{target.name}_表1.xlsx").active
     second = load_workbook(target / f"{target.name}_表2.xlsx").active
-    assert D(str(first["C2"].value)) == D("65.15")
-    assert [second.cell(row, 6).value for row in (2, 3, 4)] == [1, 2, 4]
-    assert [D(str(second.cell(row, 11).value)) for row in (2, 3, 4)] == [D("4.69"), D("25.13"), D("35.33")]
+    assert D(str(first["B2"].value)) == D("65.15")
+    assert [second.cell(row, 5).value for row in (2, 3, 4)] == [1, 2, 4]
+    assert [D(str(second.cell(row, 10).value)) for row in (2, 3, 4)] == [D("4.69"), D("25.13"), D("35.33")]
     assert digest(photo) == original_hash

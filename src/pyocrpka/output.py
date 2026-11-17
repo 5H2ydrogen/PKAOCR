@@ -61,7 +61,7 @@ def generate(s: Submission, inv: Invoice, *, output_dir: Path = OUTPUT_DIR,
     # 生成入口同样检查一份 PDF 是否混入不同发票，人工输入不能绕过。
     from .recognition import open_invoice, verify_document_scope
     verify_document_scope(s.invoice_pdf)
-    prefix = f"{s.work_order}_{inv.number}"
+    prefix = inv.number
     if output_dir.is_symlink():
         raise AppError("out 不能是符号链接，请使用项目内的真实文件夹")
     try:

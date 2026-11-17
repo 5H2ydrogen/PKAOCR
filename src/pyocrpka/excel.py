@@ -9,15 +9,15 @@ from openpyxl import load_workbook
 from .models import AppError, CATEGORIES, Invoice, Item, PAYMENTS, Submission
 
 HEADERS = (
-    ("工单号", "姓名", "发票金额", "支付方式", "发票号码", "效验码后六位", "发票代码", "开票日期", "备注"),
-    ("工单号", "开票日期", "类别", "项目", "支出内容", "数量", "单位", "单价", "税费", "运费", "总价", "支出人", "付款方式", "发票号码", "无票原因", "购买链接", "备注"),
+    ("姓名", "发票金额", "支付方式", "发票号码", "效验码后六位", "发票代码", "开票日期", "备注"),
+    ("开票日期", "类别", "项目", "支出内容", "数量", "单位", "单价", "税费", "运费", "总价", "支出人", "付款方式", "发票号码", "无票原因", "购买链接", "备注"),
 )
 
 
 def open_template(directory: Path, index: int):
-    path = directory / f"工单号_发票号_表{index}.xlsx"
+    path = directory / f"发票号_表{index}.xlsx"
     if not path.is_file():
-        raise AppError(f"缺少表{index}模板，请检查 other/工单号_发票号")
+        raise AppError(f"缺少表{index}模板，请检查 other/发票号")
     try:
         book = load_workbook(path)
     except Exception:
@@ -52,21 +52,21 @@ def put(cell, value):
 def fill_templates(directory: Path, destination: Path, prefix: str, s: Submission, inv: Invoice) -> list[Path]:
     paths = []
     rows = [
-        [[s.work_order, s.name, inv.total, s.payment, inv.number, inv.check_last6, inv.code, inv.issued_on, None]],
-        [[s.work_order, inv.issued_on, s.category, None, item.name, item.quantity, item.unit,
+        [[s.name, inv.total, s.payment, inv.number, inv.check_last6 or "无", inv.code or "无", inv.issued_on, None]],
+        [[inv.issued_on, s.category, None, item.name, item.quantity, item.unit,
           item.unit_price, item.tax, None, item.gross(), s.name, s.payment, inv.number, None, None, None]
          for item in inv.items or [Item()]],
     ]
     for index, data in enumerate(rows, 1):
         book, sheet = open_template(directory, index)
-        choices = {4: PAYMENTS} if index == 1 else {3: CATEGORIES, 13: PAYMENTS}
+        choices = {3: PAYMENTS} if index == 1 else {2: CATEGORIES, 12: PAYMENTS}
         for col, allowed in choices.items():
             for rule in sheet.data_validations.dataValidation:
                 if rule.type == "list" and sheet.cell(2, col).coordinate in rule.sqref:
                     rule.formula1 = '"' + ",".join(allowed) + '"'
         styles = [copy(c._style) for c in sheet[2]]
         row_height = sheet.row_dimensions[2].height
-        # 替换示例数据，同时清空表头外 J2/R2 的示例说明，保留样式和空白格式区域。
+        # 替换示例数据，同时清空表头外的示例说明，保留样式和空白格式区域。
         for cell in sheet[2]:
             cell.value = None
             cell.hyperlink = None
@@ -91,18 +91,21 @@ def verify_workbooks(paths: list[Path], s: Submission, inv: Invoice):
         if tuple(sheet.cell(1, c).value for c in range(1, len(HEADERS[index - 1]) + 1)) != HEADERS[index - 1]:
             raise AppError("输出 Excel 表头检查失败")
         if index == 1:
-            valid = (sheet["D2"].value == s.payment and sheet["E2"].value == inv.number
-                     and sheet["E2"].data_type == "s")
+            valid = (sheet["C2"].value == s.payment and sheet["D2"].value == inv.number
+                     and sheet["D2"].data_type == "s"
+                     and sheet["E2"].value == (inv.check_last6 or "无")
+                     and sheet["F2"].value == (inv.code or "无"))
             if inv.total is not None:
-                valid = valid and Decimal(str(sheet["C2"].value)) == inv.total
+                valid = valid and Decimal(str(sheet["B2"].value)) == inv.total
             if not valid:
                 raise AppError("表1输出字段校验失败")
         else:
             for row, item in enumerate(inv.items or [Item()], 2):
                 gross = item.gross()
-                total_valid = sheet.cell(row, 11).value is None if gross is None else Decimal(str(sheet.cell(row, 11).value)) == gross
-                if not (sheet.cell(row, 3).value == s.category and sheet.cell(row, 13).value == s.payment
-                        and sheet.cell(row, 14).value == inv.number and sheet.cell(row, 11).data_type != "f" and total_valid):
+                total_cell = sheet.cell(row, 10)
+                total_valid = total_cell.value is None if gross is None else Decimal(str(total_cell.value)) == gross
+                if not (sheet.cell(row, 2).value == s.category and sheet.cell(row, 12).value == s.payment
+                        and sheet.cell(row, 13).value == inv.number and total_cell.data_type != "f" and total_valid):
                     raise AppError("表2输出字段校验失败")
         if any("示例，请在填写完成后删除该行" in str(c.value) for row in sheet for c in row):
             raise AppError("输出中仍有示例说明，已停止保存")

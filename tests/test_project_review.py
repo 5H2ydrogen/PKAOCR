@@ -23,7 +23,7 @@ def test_one_cent_conflict_is_reported(invoice):
 
 def test_output_dropdowns_match_gui_choices(materials, invoice, templates, tmp_path):
     target = generate(materials, invoice, output_dir=tmp_path / "out", template_dir=templates)
-    for index, expected in [(1, {"D2": PAYMENTS}), (2, {"C2": CATEGORIES, "M2": PAYMENTS})]:
+    for index, expected in [(1, {"C2": PAYMENTS}), (2, {"B2": CATEGORIES, "L2": PAYMENTS})]:
         workbook = load_workbook(target / f"{target.name}_表{index}.xlsx")
         for cell, choices in expected.items():
             rules = [rule for rule in workbook.active.data_validations.dataValidation if cell in rule.sqref]
@@ -52,7 +52,7 @@ def test_ambiguous_multi_page_invoice_is_rejected(tmp_path):
 
 def test_unsupported_platform_reports_chinese_error(tmp_path, monkeypatch):
     import pyocrpka.output as output
-    monkeypatch.setattr(output.sys, "platform", "win32")
+    monkeypatch.setattr(output.sys, "platform", "freebsd")
     with pytest.raises(AppError, match="当前系统不支持"):
         publish_exclusive(tmp_path / "source", tmp_path / "target")
 

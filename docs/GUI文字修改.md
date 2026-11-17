@@ -6,7 +6,7 @@
 | --- | --- |
 | 窗口标题栏 | `self.setWindowTitle` |
 | 界面顶部大标题、副标题 | `title = QLabel`、`subtitle = QLabel` |
-| 工单号、姓名的输入框示例 | `setPlaceholderText` |
+| 姓名、其他付款方式的输入框示例 | `setPlaceholderText` |
 | 填写区域标题 | `01  报销信息` |
 | 上传区域标题、格式和选填说明 | `for key, text, kind, multi in` |
 | 添加、删除按钮 | `class FileInput` 中的 `QPushButton` |
@@ -35,7 +35,7 @@ title = QLabel("PKAOCR")
 
 错误提示还分布在这些文件中：
 
-- `src/pyocrpka/validation.py`：必填、文件格式、工单号等输入错误。
+- `src/pyocrpka/validation.py`：必填、文件格式等输入错误。
 - `src/pyocrpka/models.py`：发票号、日期、数值和金额冲突提示。
 - `src/pyocrpka/recognition.py`、`ocr.py`：识别错误。
 - `src/pyocrpka/excel.py`、`output.py`：模板和文件生成错误。

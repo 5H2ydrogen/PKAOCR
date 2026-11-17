@@ -19,7 +19,7 @@ def main():
     photos = sorted(TEMPLATE_DIR.rglob("*实物*.jpg"))
     payments = sorted(TEMPLATE_DIR.rglob("*付款凭证*.jpg"))
     if not pdfs or not payments:
-        raise SystemExit("缺少本地验收样例：请在 other/工单号_发票号 下提供发票PDF及付款凭证，私人样例不随仓库发布。")
+        raise SystemExit("缺少本地验收样例：请在 other/发票号 下提供发票PDF及付款凭证，私人样例不随仓库发布。")
     pdf = pdfs[0]
     temp = Path(tempfile.mkdtemp(prefix="pyocrpka-acceptance-"))
     original = {str(p): digest(p) for p in TEMPLATE_DIR.rglob("*") if p.is_file()}
@@ -36,7 +36,7 @@ def main():
             raise RuntimeError(f"文字层和扫描 OCR 字段不一致：{key}")
     if text.items != ocr.items:
         raise RuntimeError("文字层和扫描 OCR 商品明细不一致")
-    submission = Submission("验收样例-001", "验收测试", "微信", "硬件", pdf, verification, payments, photos)
+    submission = Submission("验收测试", "微信", "硬件", pdf, verification, payments, photos)
     target = generate(submission, text, output_dir=temp / "out", warnings_confirmed=True)
     books = {}
     for path in sorted(target.glob("*.xlsx")):

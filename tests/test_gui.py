@@ -17,10 +17,9 @@ def wait_job(window, qapp, timeout=15):
 
 
 def fill(window, materials, invoice):
-    window.work_order.setText(materials.work_order)
     window.name.setText(materials.name)
     window.payment_group.buttons()[0].click()
-    window.category_group.buttons()[8].click()
+    next(button for button in window.category_group.buttons() if button.text() == materials.category).click()
     for key in ("invoice_pdf", "verification_png", "payments", "photos"):
         value = getattr(materials, key)
         window.files[key].set_paths(value if isinstance(value, list) else [value])
@@ -36,7 +35,7 @@ def test_empty_and_live_error_clear(window):
     assert window.worker is None
     window.name.setText("张同学")
     assert window.error_labels["name"].text() == ""
-    assert window.error_labels["work_order"].text()
+    assert window.error_labels["invoice_pdf"].text()
     window.payment_group.buttons()[0].click()
     assert not window.error_labels["payment"].text()
     window.category_group.buttons()[0].click()
@@ -44,13 +43,14 @@ def test_empty_and_live_error_clear(window):
 
 
 def test_exclusive_choices_and_latest(window):
-    assert [b.text() for b in window.payment_group.buttons()] == list(PAYMENTS)
+    assert [b.text() for b in window.payment_group.buttons()] == [*PAYMENTS, "其他"]
     assert [b.text() for b in window.category_group.buttons()] == list(CATEGORIES)
     for group, key in [(window.payment_group, "payment"), (window.category_group, "category")]:
         for button in group.buttons():
             button.click()
             assert sum(b.isChecked() for b in group.buttons()) == 1
-            assert getattr(window.submission(), key) == button.text()
+            expected = "" if button is window.other_payment else button.text()
+            assert getattr(window.submission(), key) == expected
 
 
 def test_order_remove_and_replace(window, materials):
@@ -141,8 +141,17 @@ def test_latest_manual_edits_reach_excel(window, qapp, materials, invoice, templ
     from pyocrpka.output import generate
     monkeypatch.setattr(gui, "generate", lambda s, i, **kw: generate(s, i, output_dir=tmp_path / "out", template_dir=templates, **kw))
     fill(window, materials, invoice)
+    assert window.custom_payment.isHidden()
+    window.other_payment.click()
+    assert not window.custom_payment.isHidden()
+    window.start_generation()
+    assert window.worker is None and window.error_labels["payment"].text()
+    window.custom_payment.setText("  银行转账  ")
+    assert not window.error_labels["payment"].text()
     window.payment_group.buttons()[1].click()
-    window.category_group.buttons()[10].click()
+    assert window.custom_payment.isHidden() and window.submission().payment == "支付宝"
+    window.other_payment.click()
+    next(button for button in window.category_group.buttons() if button.text() == "通用耗材").click()
     window.invoice_fields["number"].setText("00001111")
     window.invoice_fields["total"].setText("31.90")
     window.invoice_fields["net_total"].setText("29.00")
@@ -154,12 +163,12 @@ def test_latest_manual_edits_reach_excel(window, qapp, materials, invoice, templ
     window.start_generation()
     wait_job(window, qapp)
     target = window.output_path
-    assert target and target.name.endswith("_00001111")
+    assert target and target.name == "00001111"
     a = load_workbook(target / f"{target.name}_表1.xlsx").active
     b = load_workbook(target / f"{target.name}_表2.xlsx").active
-    assert a["C2"].value == 31.9 and a["D2"].value == "支付宝"
-    assert b["C2"].value == "场地" and b["M2"].value == "支付宝"
-    assert b["K2"].value == 22 and b["K3"].value == 9.9
+    assert a["B2"].value == 31.9 and a["C2"].value == "银行转账"
+    assert b["B2"].value == "通用耗材" and b["L2"].value == "银行转账"
+    assert b["J2"].value == 22 and b["J3"].value == 9.9
 
 
 def test_deleted_upload_shows_error_near_field(window, qapp, materials, invoice, templates, tmp_path, monkeypatch):

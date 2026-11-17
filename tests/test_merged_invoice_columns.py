@@ -88,9 +88,9 @@ def test_private_two_item_photo_regression(materials, templates, tmp_path):
                       output_dir=tmp_path / "out", template_dir=templates)
     first = load_workbook(target / f"{target.name}_表1.xlsx").active
     second = load_workbook(target / f"{target.name}_表2.xlsx").active
-    assert D(str(first["C2"].value)) == D("46.56")
-    assert second["F2"].value == 100
-    assert D(str(second["H2"].value)) == D("0.1069306930693")
-    assert D(str(second["K2"].value)) == D("10.80")
-    assert D(str(second["K3"].value)) == D("35.76")
+    assert D(str(first["B2"].value)) == D("46.56")
+    assert second["E2"].value == 100
+    assert D(str(second["G2"].value)) == D("0.1069306930693")
+    assert D(str(second["J2"].value)) == D("10.80")
+    assert D(str(second["J3"].value)) == D("35.76")
     assert digest(photo) == original_hash

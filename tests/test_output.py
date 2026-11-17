@@ -17,29 +17,35 @@ def make(materials, invoice, tmp_path, templates, **kwargs):
     return generate(materials, invoice, output_dir=tmp_path / "out", template_dir=templates, **kwargs)
 
 
-@pytest.mark.parametrize("payment", ["微信", "支付宝"])
-def test_every_excel_field(materials, invoice, tmp_path, templates, payment):
+@pytest.mark.parametrize("payment,category,code,check", [
+    ("微信", "洞步", "", ""),
+    ("支付宝", "腿步", "012345678901", ""),
+    ("现金", "通用耗材", "", "001234"),
+])
+def test_every_excel_field(materials, invoice, tmp_path, templates, payment, category, code, check):
     materials.payment = payment
+    materials.category = category
+    invoice.code, invoice.check_last6 = code, check
     originals = {p: digest(p) for p in templates.glob("*.xlsx")}
     target = make(materials, invoice, tmp_path, templates)
     prefix = target.name
     w1 = load_workbook(target / f"{prefix}_表1.xlsx")
     w2 = load_workbook(target / f"{prefix}_表2.xlsx")
     a, b = w1.active, w2.active
-    assert [a.cell(2, i).value for i in range(1, 10)] == [materials.work_order, materials.name, 26.4, payment, invoice.number, None, None, datetime(2026, 5, 12), None]
-    assert a["E2"].data_type == "s" and a["C2"].data_type == "n" and a["H2"].is_date
-    assert a["J2"].value is None and b["R2"].value is None
+    assert [a.cell(2, i).value for i in range(1, 9)] == [materials.name, 26.4, payment, invoice.number, check or "无", code or "无", datetime(2026, 5, 12), None]
+    assert a["D2"].data_type == "s" and a["B2"].data_type == "n" and a["G2"].is_date
+    assert a["I2"].value is None and b["Q2"].value is None
     for row, item in enumerate(invoice.items, 2):
-        expected = [materials.work_order, datetime(2026, 5, 12), "硬件", None, item.name,
+        expected = [datetime(2026, 5, 12), category, None, item.name,
                     float(item.quantity), item.unit, float(item.unit_price), float(item.tax), None,
                     float(item.gross()), materials.name, payment, invoice.number, None, None, None]
-        assert [b.cell(row, col).value for col in range(1, 18)] == expected
-        assert b.cell(row, 14).data_type == "s"
-        assert b.cell(row, 11).data_type == "n"
-    assert b["K2"].value == 16.5 and b["K3"].value == 9.9
-    assert b["K2"].value != float(invoice.total)
+        assert [b.cell(row, col).value for col in range(1, 17)] == expected
+        assert b.cell(row, 13).data_type == "s"
+        assert b.cell(row, 10).data_type == "n"
+    assert b["J2"].value == 16.5 and b["J3"].value == 9.9
+    assert b["J2"].value != float(invoice.total)
     for index, out in [(1, a), (2, b)]:
-        source = load_workbook(templates / f"工单号_发票号_表{index}.xlsx").active
+        source = load_workbook(templates / f"发票号_表{index}.xlsx").active
         assert out.title == source.title
         assert [c.value for c in out[1]] == [c.value for c in source[1]]
         assert [c._style for c in out[1]] == [c._style for c in source[1]]
@@ -65,6 +71,7 @@ def test_exact_tree_and_copy_order(materials, invoice, tmp_path, templates, coun
     before = {p: digest(p) for p in [materials.invoice_pdf, materials.verification_png, *sources]}
     target = make(materials, invoice, tmp_path, templates)
     p = target.name
+    assert p == invoice.number
     expected = {f"{p}_表1.xlsx", f"{p}_表2.xlsx", f"{p}_报销材料/{p}_发票.pdf", f"{p}_报销材料/{p}_发票查验.png"}
     for kind, files in [("实物", materials.photos), ("付款凭证", materials.payments)]:
         for i, source in enumerate(files, 1):
@@ -119,7 +126,7 @@ def test_failure_cleans_staging(materials, invoice, tmp_path, templates, monkeyp
 
 
 def test_template_conflict(materials, invoice, tmp_path, templates):
-    path = templates / "工单号_发票号_表2.xlsx"
+    path = templates / "发票号_表2.xlsx"
     book = load_workbook(path);book.active["C1"] = "错误表头";book.save(path)
     with pytest.raises(AppError, match="表头"):
         make(materials, invoice, tmp_path, templates)
@@ -133,8 +140,8 @@ def test_unknown_fields_and_no_shipping_zero(materials, invoice, tmp_path, templ
     p = target.name
     a = load_workbook(target / f"{p}_表1.xlsx").active
     b = load_workbook(target / f"{p}_表2.xlsx").active
-    assert a["C2"].value is None and a["H2"].value is None
-    assert all(b[c].value is None for c in ("I2", "J2", "K2", "D2", "O2", "P2", "Q2"))
+    assert a["B2"].value is None and a["G2"].value is None
+    assert all(b[c].value is None for c in ("H2", "I2", "J2", "C2", "N2", "O2", "P2"))
 
 
 def test_confirm_required_for_conflict(materials, invoice, tmp_path, templates):
@@ -143,12 +150,12 @@ def test_confirm_required_for_conflict(materials, invoice, tmp_path, templates):
         make(materials, invoice, tmp_path, templates)
     target = make(materials, invoice, tmp_path, templates, warnings_confirmed=True)
     sheet = load_workbook(target / f"{target.name}_表1.xlsx").active
-    assert sheet["C2"].value == 100
+    assert sheet["B2"].value == 100
 
 
 def test_manual_correction_and_formula_injection(materials, invoice, tmp_path, templates):
     materials.name = "=HYPERLINK(\"https://invalid.example\")"
-    materials.work_order = "=1+2"
+    materials.payment = "=1+2"
     invoice.number = "00000001"
     invoice.total = D("11")
     invoice.net_total = D("10");invoice.tax_total = D(1)
@@ -156,9 +163,9 @@ def test_manual_correction_and_formula_injection(materials, invoice, tmp_path, t
     target = make(materials, invoice, tmp_path, templates, warnings_confirmed=True)
     a = load_workbook(target / f"{target.name}_表1.xlsx").active
     b = load_workbook(target / f"{target.name}_表2.xlsx").active
-    assert a["A2"].data_type == "s" and a["B2"].data_type == "s"
-    assert a["E2"].value == "00000001" and b["E2"].data_type == "s"
-    assert b["K2"].value == 11
+    assert a["A2"].data_type == "s" and a["C2"].data_type == "s" and b["L2"].data_type == "s"
+    assert a["D2"].value == "00000001" and b["D2"].data_type == "s"
+    assert b["J2"].value == 11
 
 
 def test_invalid_invoice_and_symlink(materials, invoice, tmp_path, templates):

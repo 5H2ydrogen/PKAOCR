@@ -11,10 +11,9 @@ app = QApplication([])
 app.setStyle("Fusion")
 app.setWindowIcon(QIcon(str(APP_ICON)))
 window = MainWindow()
-window.work_order.setText("验收样例-001")
 window.name.setText("验收测试")
 window.payment_group.buttons()[0].click()
-window.category_group.buttons()[8].click()
+next(button for button in window.category_group.buttons() if button.text() == "硬件").click()
 for key, paths in [
     ("invoice_pdf", list(TEMPLATE_DIR.rglob("*.pdf"))),
     ("verification_png", list(TEMPLATE_DIR.rglob("*发票查验.png"))),
