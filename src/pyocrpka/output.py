@@ -24,6 +24,12 @@ def digest(path: Path) -> str:
 
 def publish_exclusive(source: Path, target: Path):
     """macOS 的 RENAME_EXCL 使存在检查到发布之间也不能覆盖同名目录。"""
+    if sys.platform == "win32":
+        try:
+            os.rename(source, target)
+        except FileExistsError:
+            raise AppError("目标目录已存在，已停止生成，请先检查已有报销材料") from None
+        return
     if sys.platform != "darwin" and not sys.platform.startswith("linux"):
         raise AppError("当前系统不支持安全发布；本版本优先支持 macOS")
     libc = ctypes.CDLL(None, use_errno=True)
