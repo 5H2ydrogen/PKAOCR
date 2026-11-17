@@ -159,6 +159,8 @@ def test_latest_manual_edits_reach_excel(window, qapp, materials, invoice, templ
     window.table.item(0, 3).setText("4")
     window.table.item(0, 5).setText("20.00")
     window.table.item(0, 7).setText("2.00")
+    link = "https://example.com/item?id=123&variant=2"
+    window.purchase_link.setText(link)
     window.confirm.setChecked(True)
     window.start_generation()
     wait_job(window, qapp)
@@ -169,6 +171,7 @@ def test_latest_manual_edits_reach_excel(window, qapp, materials, invoice, templ
     assert a["B2"].value == 31.9 and a["C2"].value == "银行转账"
     assert b["B2"].value == "通用耗材" and b["L2"].value == "银行转账"
     assert b["J2"].value == 22 and b["J3"].value == 9.9
+    assert b["O2"].value == b["O3"].value == link
 
 
 def test_deleted_upload_shows_error_near_field(window, qapp, materials, invoice, templates, tmp_path, monkeypatch):

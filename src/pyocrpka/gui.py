@@ -215,7 +215,7 @@ class MainWindow(QMainWindow):
         scroll.setWidget(self.canvas)
         layout.addWidget(scroll, 1)
         self.error_labels = {}
-        base = QGroupBox("01  报销信息 · 全部必填")
+        base = QGroupBox("01  报销信息")
         form = QFormLayout(base)
         self.name = QLineEdit()
         self.name.setPlaceholderText("实际支出人姓名")
@@ -251,6 +251,10 @@ class MainWindow(QMainWindow):
         self.category_group.buttonToggled.connect(self.inputs_changed)
         form.addRow("类别", category_layout)
         form.addRow("", self.make_error("category"))
+        self.purchase_link = QLineEdit()
+        self.purchase_link.setPlaceholderText("选填，适用于所有明细")
+        self.purchase_link.textChanged.connect(self.inputs_changed)
+        form.addRow("购买链接", self.purchase_link)
         left.addWidget(base)
         self.files = {}
         for key, text, kind, multi in [("invoice_pdf", "02  发票 · PDF / PNG / JPG", "invoice", False),
@@ -375,7 +379,8 @@ class MainWindow(QMainWindow):
         payment = self.custom_payment.text().strip() if self.other_payment.isChecked() else selected(self.payment_group)
         return Submission(name=self.name.text().strip(), payment=payment, category=selected(self.category_group),
                           invoice_pdf=one("invoice_pdf"), verification_png=one("verification_png"),
-                          payments=list(self.files["payments"].paths), photos=list(self.files["photos"].paths))
+                          payments=list(self.files["payments"].paths), photos=list(self.files["photos"].paths),
+                          purchase_link=self.purchase_link.text().strip())
 
     def show_errors(self, errors):
         for key, label in self.error_labels.items():

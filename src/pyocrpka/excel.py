@@ -54,7 +54,7 @@ def fill_templates(directory: Path, destination: Path, prefix: str, s: Submissio
     rows = [
         [[s.name, inv.total, s.payment, inv.number, inv.check_last6 or "无", inv.code or "无", inv.issued_on, None]],
         [[inv.issued_on, s.category, None, item.name, item.quantity, item.unit,
-          item.unit_price, item.tax, None, item.gross(), s.name, s.payment, inv.number, None, None, None]
+          item.unit_price, item.tax, None, item.gross(), s.name, s.payment, inv.number, None, s.purchase_link, None]
          for item in inv.items or [Item()]],
     ]
     for index, data in enumerate(rows, 1):
@@ -105,7 +105,9 @@ def verify_workbooks(paths: list[Path], s: Submission, inv: Invoice):
                 total_cell = sheet.cell(row, 10)
                 total_valid = total_cell.value is None if gross is None else Decimal(str(total_cell.value)) == gross
                 if not (sheet.cell(row, 2).value == s.category and sheet.cell(row, 12).value == s.payment
-                        and sheet.cell(row, 13).value == inv.number and total_cell.data_type != "f" and total_valid):
+                        and sheet.cell(row, 13).value == inv.number
+                        and sheet.cell(row, 15).value == (s.purchase_link or None)
+                        and total_cell.data_type != "f" and total_valid):
                     raise AppError("表2输出字段校验失败")
         if any("示例，请在填写完成后删除该行" in str(c.value) for row in sheet for c in row):
             raise AppError("输出中仍有示例说明，已停止保存")

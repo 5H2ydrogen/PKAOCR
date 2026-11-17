@@ -14,6 +14,7 @@ coverage.xml
 build/
 dist/
 *.egg-info/
+PKAOCR.spec
 
 # 本机 IDE、系统文件和 Excel 临时锁文件
 .idea/

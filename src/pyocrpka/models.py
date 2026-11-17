@@ -159,3 +159,4 @@ class Submission:
     verification_png: Path | None = None
     payments: list[Path] = field(default_factory=list)
     photos: list[Path] = field(default_factory=list)
+    purchase_link: str = ""
